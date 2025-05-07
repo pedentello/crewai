@@ -7,7 +7,7 @@ headers = {
     'Content-Type': 'application/json',
 }
 data = {
-    'blog_requirements': 'Agentic AI - Enterprise architecture.'
+    'topic': 'Agentic AI - Enterprise architecture.'
 }
 
 response = requests.post(url, headers=headers, json=data)

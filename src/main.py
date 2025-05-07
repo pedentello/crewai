@@ -4,30 +4,32 @@ from pydantic import BaseModel
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import SerperDevTool
 
+# Set up API keys
+os.environ["SERPER_API_KEY"] = "111" # serper.dev API key
+
 app = FastAPI()
 
 search_tool = SerperDevTool()
 
 llm_deepseek = LLM(
-    model="ollama/deepseek-r1:7b",
+    model="ollama/llama3.2:1b",
     base_url="http://127.0.0.1:11434"
 )
 
 # Define your agents with roles and goals
 researcher = Agent(
   role='Researcher',
-  goal='Discover new insights',
-  backstory="You're a world class researcher working on a major data science company",
-  tools=[search_tool]
+  goal="Find and summarize information about specific {topic}. If necessary, use the search tool to find relevant information.",
+  backstory="You are an experienced researcher with attention to detail",
+  tools=[search_tool],
   verbose=True,
   allow_delegation=False,
   llm=llm_deepseek
 )
 writer = Agent(
   role='Writer',
-  goal='Create engaging content',
-  backstory="You're a famous technical writer, specialized on writing data related content",
-  tools=[search_tool]
+  goal='Write a compelling article about {topic}',
+  backstory="You're a criative and famous technical writer, specialized on writing data related content",
   verbose=True,
   allow_delegation=False,
   llm=llm_deepseek
@@ -35,33 +37,31 @@ writer = Agent(
 
 # Definir o modelo de entrada
 class BlogRequirements(BaseModel):
-    job_requirements: str
+    topic: str
 
 # Definir a rota para executar a tarefa
 @app.post("/blog")
-async def blog(req: BlogRequirements):
+async def blog(inputs: BlogRequirements):
 
     # Create tasks for your agents
     task1 = Task(
         description="""
-            Investigate the latest AI trends
+            Research the {topic} and gather key points.
             Make sure you find any interesting and relevant information 
-            Requirements: {req.job_requirements}
         """,
         expected_output="""
-            A list with 10 bullet points of the most relevant information about AI Agents
+            A list with 10 bullet points of the most relevant information about {topic}
         """,
         agent=researcher
     )
 
     task2 = Task(
         description="""
-            Write a blog post on AI advancements
-            Make sure you write a compelling article with the latest
+            Write a compelling article about {topic} based on the research.
+            Make it engaging and informative.
         """,
         expected_output="""
-            A blog post with at least 500 words on the latest AI advancements
-        """,
+            A blog post with at least 500 words.""",
         agent=writer
     )
 
@@ -70,9 +70,9 @@ async def blog(req: BlogRequirements):
         agents=[researcher, writer],
         tasks=[task1, task2],
         verbose=True,
-        llm=llm_deepseek, 
+        process=Process.sequential
     )
-    result = crew.kickoff(inputs={'blog_requirements': req.blog_requirements})
+    result = crew.kickoff(inputs={'topic': inputs.topic})
     return {"result": result}
 
 # Rodar o servidor usando Uvicorn
